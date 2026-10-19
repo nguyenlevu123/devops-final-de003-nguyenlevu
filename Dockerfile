@@ -6,34 +6,30 @@
 
 # ---------- Stage 1: build - biên dịch & đóng gói bằng Gradle + JDK 21 ----------
 # Spring Boot 4 yêu cầu Gradle >= 8.14
-FROM ______ AS ______
-WORKDIR /workspace
+FROM gradle:8.5-jdk21-alpine  AS builder
+WORKDIR /app
 
 # Copy build.gradle + settings.gradle trước, tải dependency để tận dụng cache layer
-COPY ______ ./
-RUN ______
+COPY gradlew .
+COPY gradle gradle
+COPY build.gradle settings.gradle ./
 
-# Copy mã nguồn rồi đóng gói file JAR (bỏ qua test)
-COPY ______ ./src
-RUN ______
+RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
 
-# ---------- Stage 2: runtime - chỉ chứa JRE 21 + file JAR ----------
-FROM ______ AS runtime
+COPY src src
+RUN ./gradlew bootJar -x test --no-daemon
 
-# Phiên bản ứng dụng truyền vào lúc build (docker compose: build-arg APP_VERSION)
-ARG ______=dev
-ENV APP_VERSION=______ \
-    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
+FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Chạy ứng dụng bằng user thường, không dùng root
-RUN addgroup -S spring && adduser -S spring -G spring
-# Chỉ lấy file JAR từ stage build
-COPY ______ /app/app.jar
-USER ______
+RUN addgroup -S nguyenlevu123group && adduser -S nguyenlevu123 -G nguyenlevu123group
 
-EXPOSE ______
+COPY --from=builder --chown=nguyenlevu123:nguyenlevu123group /app/build/libs/*.jar app.jar
 
-# ENTRYPOINT dạng exec (mảng JSON)
-ENTRYPOINT ______
+USER nguyenlevu123
+
+
+EXPOSE 8083
+
+ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
